@@ -1,0 +1,31 @@
+{
+    "name": "makehui/iflytek-sdk",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Make Hui",
+            "email": "makehuir@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^7.2",
+        "ext-json": "*",
+        "ext-curl": "*",
+        "ext-fileinfo": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "makehui\\iflytek\\": "src"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "7",
+        "symfony/yaml": "^5.3.6"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "tests\\": "tests/"
+        }
+    }
+}
