@@ -42,6 +42,6 @@ class Test extends TestCase
         } catch (LfasrException $e) {
             var_export($e);
         }
-        $this->assertTrue(!!count(1));
+        $this->assertTrue(!!count($result));
     }
 }
