@@ -238,6 +238,10 @@ class LfasrService
         $params['file_name'] = basename($filePath);
         $params['slice_num'] = (int) ceil($params['file_len'] / $sliceLen);
 
+        if (explode('.', $params['file_name']) < 2) {
+            $params['file_name'] .= $this->config['file_ext'];
+        }
+
         return $params;
     }
 
