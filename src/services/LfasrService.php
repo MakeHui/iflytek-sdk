@@ -23,6 +23,7 @@ use makehui\iflytek\Signature;
 class LfasrService
 {
     private const DEFAULT_SLICE_LEN = 10 * 1024 * 1024;
+    private const DEFAULT_FILE_EXT = 'mp3';
 
     protected $config = [];
 
@@ -43,20 +44,24 @@ class LfasrService
      * @param ParamsInterface|array $params
      * @param string $filePath 如果设置了该参数, 并且 $params 是数组类型
      *                         $fileLen, $fileName, $sliceNum 这几个参数可不设置
+     * @param array $config
      * @return string|null
      * @throws LfasrException
      */
-    public function prepare($params, string $filePath = '') {
+    public function prepare($params, string $filePath = '', array $config = [])
+    {
+        $config = array_merge($this->config, $config);
+
         if (!($params instanceof ParamsInterface)) {
-            $sliceLen = $this->config['slice_len'] ?? self::DEFAULT_SLICE_LEN;
+            $sliceLen = $config['slice_len'] ?? self::DEFAULT_SLICE_LEN;
             $ts = time();
             if ($filePath) {
-                $params = array_merge($params, $this->filePathParse($filePath, $sliceLen));
+                $params = array_merge($params, $this->filePathParse($filePath, $sliceLen, $config));
             }
 
             $params = array_merge($params, [
                 'ts' => $ts,
-                'app_id' => $this->config['app_id'],
+                'app_id' => $config['app_id'],
                 'signa' => $this->signa($ts)]);
             $params = new PrepareParams($params);
         }
@@ -72,16 +77,19 @@ class LfasrService
      * @param ParamsInterface|array $params
      * @param string $filePath 如果设置了该参数, 并且 $params 是数组类型
      *                         自动分片上传
+     * @param array $config
      * @throws LfasrException
      */
-    public function upload($params, string $filePath = '')
+    public function upload($params, string $filePath = '', array $config = [])
     {
+        $config = array_merge($this->config, $config);
+
         if ($params instanceof ParamsInterface) {
             $this->request('upload', $params, ['Content-Type' => 'multipart/form-data']);
             return;
         }
 
-        $sliceLen = $this->config['slice_len'] ?? self::DEFAULT_SLICE_LEN;
+        $sliceLen = $config['slice_len'] ?? self::DEFAULT_SLICE_LEN;
         $sliceIndex = 0;
         $file = fopen($filePath, 'rb');
 
@@ -103,11 +111,13 @@ class LfasrService
      * https://www.xfyun.cn/doc/asr/lfasr/API.html#_3%E3%80%81%E5%90%88%E5%B9%B6%E6%96%87%E4%BB%B6%E6%8E%A5%E5%8F%A3
      *
      * @param ParamsInterface|array $params
+     * @param array $config
      * @throws LfasrException
      */
-    public function merge($params) {
+    public function merge($params, array $config = [])
+    {
         if (!($params instanceof ParamsInterface)) {
-            $params = $this->paramsParse($params);
+            $params = $this->paramsParse($params, $config);
             $params = new MergeParams($params);
         }
         $this->request('merge', $params);
@@ -118,12 +128,13 @@ class LfasrService
      * https://www.xfyun.cn/doc/asr/lfasr/API.html#_4%E3%80%81%E6%9F%A5%E8%AF%A2%E5%A4%84%E7%90%86%E8%BF%9B%E5%BA%A6%E6%8E%A5%E5%8F%A3
      *
      * @param ParamsInterface|array $params
+     * @param array $config
      * @return array|null
      * @throws LfasrException
      */
-    public function getProgress($params) {
+    public function getProgress($params, array $config = []) {
         if (!($params instanceof ParamsInterface)) {
-            $params = $this->paramsParse($params);
+            $params = $this->paramsParse($params, $config);
             $params = new MergeParams($params);
         }
         $result = $this->request('getProgress', $params);
@@ -135,10 +146,11 @@ class LfasrService
      * https://www.xfyun.cn/doc/asr/lfasr/API.html#_5%E3%80%81%E8%8E%B7%E5%8F%96%E7%BB%93%E6%9E%9C%E6%8E%A5%E5%8F%A3
      *
      * @param ParamsInterface|array $params
+     * @param array $config
      * @return array|null
      * @throws LfasrException
      */
-    public function getResult($params) {
+    public function getResult($params, array $config = []) {
         if (!($params instanceof ParamsInterface)) {
             $params = $this->paramsParse($params);
             $params = new ResultParams($params);
@@ -152,14 +164,16 @@ class LfasrService
      * 预处理, 文件分片上传, 合并文件
      *
      * @param $filePath
+     * @param array $config
      * @return string
      * @throws LfasrException
      */
-    public function comboUpload($filePath)
+    public function comboUpload($filePath, array $config = [])
     {
-        $result = $this->prepare([], $filePath);
-        $this->upload(['task_id' => $result], $filePath);
-        $this->merge(['task_id' => $result]);
+        $config = array_merge($this->config, $config);
+        $result = $this->prepare([], $filePath, $config);
+        $this->upload(['task_id' => $result], $filePath, $config);
+        $this->merge(['task_id' => $result], $config);
         return $result;
     }
 
@@ -168,18 +182,20 @@ class LfasrService
      * 定时查看结果是否完成
      *
      * @param $taskId
+     * @param array $config
      * @return array|null
      * @throws LfasrException
      */
-    public function comboResult($taskId)
+    public function comboResult($taskId, array $config = [])
     {
-        $result = $this->getProgress(['task_id' => $taskId]);
+        $config = array_merge($this->config, $config);
+        $result = $this->getProgress(['task_id' => $taskId], $config);
 
         if ($result['status'] != LfasrTaskError::CODE_9) {
             throw new LfasrException($result['desc'], $result['status']);
         }
 
-        return $this->getResult(['task_id' => $taskId]);
+        return $this->getResult(['task_id' => $taskId], $config);
     }
 
     /**
@@ -187,16 +203,18 @@ class LfasrService
      * 注意: 不建议使用该接口, 可能会超时
      *
      * @param $filePath
+     * @param array $config
      * @return array
      * @throws LfasrException
      */
-    public function comboApi($filePath)
+    public function comboApi($filePath, array $config = [])
     {
-        $taskId = $this->comboUpload($filePath);
+        $config = array_merge($this->config, $config);
+        $taskId = $this->comboUpload($filePath, $config);
         $result = null;
         while (!$result) {
             try {
-                $result = $this->comboResult($taskId);
+                $result = $this->comboResult($taskId, $config);
             } catch (LfasrException $e) {
                 if ($e->getCode() !== LfasrError::CODE_26605) {
                     throw $e;
@@ -229,17 +247,19 @@ class LfasrService
     /**
      * @param $filePath
      * @param float|int $sliceLen
+     * @param array $config
      * @return array
      */
-    protected function filePathParse($filePath, $sliceLen = self::DEFAULT_SLICE_LEN)
+    protected function filePathParse($filePath, $sliceLen = self::DEFAULT_SLICE_LEN, array $config = [])
     {
         $params = [];
         $params['file_len'] = filesize($filePath);
         $params['file_name'] = basename($filePath);
         $params['slice_num'] = (int) ceil($params['file_len'] / $sliceLen);
 
-        if (explode('.', $params['file_name']) < 2) {
-            $params['file_name'] .= $this->config['file_ext'];
+        $config = array_merge($this->config, $config);
+        if (strpos($params['file_name'], '.') === false) {
+            $params['file_name'] .= '.' .($config['default_file_ext'] ?? self::DEFAULT_FILE_EXT);
         }
 
         return $params;
@@ -247,14 +267,16 @@ class LfasrService
 
     /**
      * @param array $params
+     * @param array $config
      * @return array
      */
-    protected function paramsParse($params = [])
+    protected function paramsParse($params = [], array $config = [])
     {
+        $config = array_merge($this->config, $config);
         $ts = time();
         return array_merge($params, [
             'ts' => $ts,
-            'app_id' => $this->config['app_id'],
+            'app_id' => $config['app_id'],
             'signa' => $this->signa($ts)
         ]);
     }
